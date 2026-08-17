@@ -1,7 +1,6 @@
 import express from "express";
 import path from "path";
 import fs from "fs";
-import { createServer as createViteServer } from "vite";
 
 const app = express();
 const PORT = 3000;
@@ -10,49 +9,8 @@ const USERS_FILE = "users.json";
 app.use(express.json());
 
 // ============================================================
-//  الأنواع (Types)
+//  إدارة المستخدمين
 // ============================================================
-type PlatformId = 'tiktok' | 'instagram' | 'facebook' | 'youtube' | 'pinterest' | 'twitter' | 'threads' | 'snapchat';
-
-interface QualityFormat {
-  id: string;
-  label: string;
-  resolution: string;
-  quality: string;
-  fileType: 'mp4' | 'mp3' | 'webm';
-  estimatedSize: string;
-  bitrate: string;
-  fps: number;
-  hasAudio: boolean;
-  noWatermark: boolean;
-  isAiEnhanced?: boolean;
-  downloadUrl: string;
-}
-
-interface VideoAuthor {
-  name: string;
-  username: string;
-  avatarUrl: string;
-  verified?: boolean;
-}
-
-interface VideoMetadata {
-  id: string;
-  originalUrl: string;
-  platform: PlatformId;
-  title: string;
-  author: VideoAuthor;
-  duration: number;
-  durationFormatted: string;
-  thumbnailUrl: string;
-  previewVideoUrl: string;
-  views?: string;
-  likes?: string;
-  uploadDate?: string;
-  description?: string;
-  formats: QualityFormat[];
-}
-
 interface User {
   id: string;
   firstName: string;
@@ -66,9 +24,6 @@ interface User {
   isAdmin: boolean;
 }
 
-// ============================================================
-//  إدارة المستخدمين
-// ============================================================
 function loadUsers(): User[] {
   try {
     if (fs.existsSync(USERS_FILE)) {
@@ -257,7 +212,7 @@ async function extractTikTokReal(rawUrl: string) {
   return {
     id: "tt_" + (item.id || Date.now()),
     originalUrl: rawUrl,
-    platform: "tiktok" as PlatformId,
+    platform: "tiktok",
     title,
     author: {
       name: item.author?.nickname || "TikTok Creator",
@@ -279,7 +234,7 @@ async function extractTikTokReal(rawUrl: string) {
         label: "4K / HD فائق الدقة (PIPO AI Enhanced 60fps)",
         resolution: "1920x1080 (Full HD+)",
         quality: "4K",
-        fileType: "mp4" as const,
+        fileType: "mp4",
         estimatedSize: "28.5 MB",
         bitrate: "18.5 Mbps",
         fps: 60,
@@ -293,7 +248,7 @@ async function extractTikTokReal(rawUrl: string) {
         label: "1080p أصلي مباشر (بدون علامة)",
         resolution: "1080x1920",
         quality: "1080p",
-        fileType: "mp4" as const,
+        fileType: "mp4",
         estimatedSize: "16.2 MB",
         bitrate: "10.2 Mbps",
         fps: 60,
@@ -307,7 +262,7 @@ async function extractTikTokReal(rawUrl: string) {
         label: "صوت نقي MP3 (320kbps Studio)",
         resolution: "Audio Only",
         quality: "Audio HD",
-        fileType: "mp3" as const,
+        fileType: "mp3",
         estimatedSize: "4.2 MB",
         bitrate: "320 kbps Studio",
         fps: 0,
@@ -341,26 +296,13 @@ app.post("/api/extract", async (req, res) => {
 });
 
 // ============================================================
+//  خدمة الملفات الثابتة
+// ============================================================
+app.use(express.static(path.join(__dirname, "dist")));
+
+// ============================================================
 //  تشغيل الخادم
 // ============================================================
-async function startServer() {
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd());
-    app.use(express.static(distPath));
-    app.get("/", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
-  }
-
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`✅ PIPO Engine running at http://localhost:${PORT}`);
-  });
-}
-
-startServer();
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`✅ PIPO Engine running at http://localhost:${PORT}`);
+});
