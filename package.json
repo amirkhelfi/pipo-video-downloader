@@ -1,20 +1,20 @@
 {
   "name": "pipo-video-backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "server.js",
+  "description": "PIPO Video Downloader & AI Enhancer",
+  "main": "server.ts",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "npx tsx server.ts"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
     "@google/genai": "^2.17.1",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "vite": "^8.2.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.12"
   }
 }
