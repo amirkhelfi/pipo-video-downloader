@@ -1,5 +1,6 @@
 import express, { Request, Response } from "express";
 import path from "path";
+import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 import { GoogleGenAI } from "@google/genai";
@@ -7,7 +8,7 @@ import { GoogleGenAI } from "@google/genai";
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 app.use(express.json());
 
@@ -293,7 +294,7 @@ app.get("/api/health", (_req: Request, res: Response) => {
   });
 });
 
-// Proxy streaming endpoint to bypass CORS and force direct file download
+// Proxy streaming endpoint for file downloads & CORS bypass
 app.get("/api/proxy-media", async (req: Request, res: Response) => {
   try {
     const mediaUrl = req.query.url as string;
@@ -456,18 +457,20 @@ app.post("/api/extract", async (req: Request, res: Response) => {
   }
 });
 
-// Main start function with Vite middleware
+// Main start function with Vite middleware and safe SPA fallback
 async function startServer() {
-  if (process.env.NODE_ENV !== "production") {
+  const distPath = path.join(process.cwd(), "dist");
+  const hasDist = fs.existsSync(distPath) && fs.existsSync(path.join(distPath, "index.html"));
+
+  if (process.env.NODE_ENV !== "production" || !hasDist) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get("*", (_req: Request, res: Response) => {
+    app.use((_req: Request, res: Response) => {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
