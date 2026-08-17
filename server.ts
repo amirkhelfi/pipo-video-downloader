@@ -131,7 +131,7 @@ app.post("/api/unban-user", (req, res) => {
 });
 
 // ============================================================
-//  استخراج الفيديو (TikTok)
+//  استخراج الفيديو
 // ============================================================
 async function resolveShortUrl(rawUrl: string): Promise<string> {
   try {
@@ -180,91 +180,84 @@ app.get("/api/proxy-media", async (req, res) => {
   }
 });
 
+// ============================================================
+//  دالة استخراج تيك توك (TikDown API)
+// ============================================================
 async function extractTikTokReal(rawUrl: string) {
   const resolvedUrl = await resolveShortUrl(rawUrl);
   const cleanUrl = resolvedUrl.split("?")[0] || resolvedUrl;
 
-  const apiUrl = `https://www.tikwm.com/api/?url=${encodeURIComponent(cleanUrl)}&count=12&cursor=0&web=1&hd=1`;
+  const apiUrl = `https://tikdown.org/api/ajaxSearch?q=${encodeURIComponent(cleanUrl)}`;
   const response = await fetch(apiUrl, {
-    headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      "Accept": "application/json",
+    },
   });
 
-  if (!response.ok) throw new Error("TikWM API unavailable");
+  if (!response.ok) throw new Error("فشل الاتصال بـ TikTok API");
   const data = await response.json();
 
-  if (data.code !== 0 || !data.data) {
-    throw new Error(data.msg || "Failed to parse TikTok video");
+  if (!data.success || !data.data) {
+    throw new Error(data.msg || "فشل استخراج الفيديو");
   }
 
   const item = data.data;
-  const directNoWmUrl = item.play ? (item.play.startsWith("http") ? item.play : `https://www.tikwm.com${item.play}`) : "";
-  const directHdUrl = item.hdplay ? (item.hdplay.startsWith("http") ? item.hdplay : `https://www.tikwm.com${item.hdplay}`) : directNoWmUrl;
-  const directMusicUrl = item.music ? (item.music.startsWith("http") ? item.music : `https://www.tikwm.com${item.music}`) : "";
-  const coverUrl = item.cover ? (item.cover.startsWith("http") ? item.cover : `https://www.tikwm.com${item.cover}`) : "";
+  const directNoWmUrl = item.video_no_watermark || item.video || item.play || "";
+  const directMusicUrl = item.music || "";
 
-  const title = item.title || "مقطع تيك توك عالي الدقة بدون علامة";
+  if (!directNoWmUrl) {
+    throw new Error("لا يوجد فيديو قابل للتحميل بدون علامة مائية");
+  }
+
+  const title = item.title || "مقطع تيك توك";
   const safeFilename = title.replace(/[^a-zA-Z0-9_\-\u0600-\u06FF]/g, "_").substring(0, 30);
 
-  const hdDownloadUrl = `/api/proxy-media?url=${encodeURIComponent(directHdUrl || directNoWmUrl)}&filename=${encodeURIComponent(`PIPO_${safeFilename}_4K_AI_NoWM.mp4`)}&type=video/mp4`;
-  const sdDownloadUrl = `/api/proxy-media?url=${encodeURIComponent(directNoWmUrl)}&filename=${encodeURIComponent(`PIPO_${safeFilename}_1080p_NoWM.mp4`)}&type=video/mp4`;
-  const audioDownloadUrl = `/api/proxy-media?url=${encodeURIComponent(directMusicUrl || directNoWmUrl)}&filename=${encodeURIComponent(`PIPO_${safeFilename}_Audio_320k.mp3`)}&type=audio/mpeg`;
+  const downloadUrl = `/api/proxy-media?url=${encodeURIComponent(directNoWmUrl)}&filename=${encodeURIComponent(`PIPO_${safeFilename}_NoWM.mp4`)}&type=video/mp4`;
+  const audioDownloadUrl = `/api/proxy-media?url=${encodeURIComponent(directMusicUrl || directNoWmUrl)}&filename=${encodeURIComponent(`PIPO_${safeFilename}_Audio.mp3`)}&type=audio/mpeg`;
 
   return {
-    id: "tt_" + (item.id || Date.now()),
+    id: "tt_" + Date.now(),
     originalUrl: rawUrl,
     platform: "tiktok",
     title,
     author: {
-      name: item.author?.nickname || "TikTok Creator",
+      name: item.author?.name || "TikTok Creator",
       username: item.author?.unique_id ? `@${item.author.unique_id}` : "@tiktok_user",
       avatarUrl: item.author?.avatar || "https://api.dicebear.com/7.x/bottts/svg?seed=tiktok",
       verified: true,
     },
     duration: item.duration || 30,
     durationFormatted: `${Math.floor((item.duration || 30) / 60)}:${((item.duration || 30) % 60).toString().padStart(2, "0")}`,
-    thumbnailUrl: coverUrl,
-    previewVideoUrl: directHdUrl || directNoWmUrl,
+    thumbnailUrl: item.cover || "",
+    previewVideoUrl: directNoWmUrl,
     views: item.play_count ? `${Math.round(item.play_count / 1000)}K` : "1.2M",
     likes: item.digg_count ? `${Math.round(item.digg_count / 1000)}K` : "145K",
     uploadDate: "متاح الآن بدون علامة مائية",
-    description: "مقطع تيك توك أصلي تم استخراجه بنجاح بدون علامة مائية بواسطة PIPO.",
+    description: "مقطع تيك توك بدون علامة مائية",
     formats: [
       {
-        id: "fmt_tt_4k",
-        label: "4K / HD فائق الدقة (PIPO AI Enhanced 60fps)",
-        resolution: "1920x1080 (Full HD+)",
-        quality: "4K",
-        fileType: "mp4",
-        estimatedSize: "28.5 MB",
-        bitrate: "18.5 Mbps",
-        fps: 60,
-        hasAudio: true,
-        noWatermark: true,
-        isAiEnhanced: true,
-        downloadUrl: hdDownloadUrl,
-      },
-      {
-        id: "fmt_tt_1080p",
-        label: "1080p أصلي مباشر (بدون علامة)",
-        resolution: "1080x1920",
+        id: "fmt_tt_hd",
+        label: "1080p HD (بدون علامة مائية)",
+        resolution: "1920x1080",
         quality: "1080p",
         fileType: "mp4",
-        estimatedSize: "16.2 MB",
-        bitrate: "10.2 Mbps",
+        estimatedSize: "18.5 MB",
+        bitrate: "12.0 Mbps",
         fps: 60,
         hasAudio: true,
         noWatermark: true,
         isAiEnhanced: false,
-        downloadUrl: sdDownloadUrl,
+        downloadUrl: downloadUrl,
       },
       {
         id: "fmt_tt_audio",
-        label: "صوت نقي MP3 (320kbps Studio)",
+        label: "صوت MP3 (320kbps)",
         resolution: "Audio Only",
         quality: "Audio HD",
         fileType: "mp3",
         estimatedSize: "4.2 MB",
-        bitrate: "320 kbps Studio",
+        bitrate: "320 kbps",
         fps: 0,
         hasAudio: true,
         noWatermark: true,
@@ -275,6 +268,9 @@ async function extractTikTokReal(rawUrl: string) {
   };
 }
 
+// ============================================================
+//  API استخراج الفيديو الرئيسي
+// ============================================================
 app.post("/api/extract", async (req, res) => {
   const { url } = req.body;
   if (!url || typeof url !== "string") {
@@ -284,10 +280,11 @@ app.post("/api/extract", async (req, res) => {
   try {
     const low = url.toLowerCase();
     let data;
-    if (low.includes("tiktok.com")) {
+    if (low.includes("tiktok.com") || low.includes("vt.tiktok.com")) {
       data = await extractTikTokReal(url);
     } else {
-      data = await extractTikTokReal(url);
+      // منصات أخرى (يوتيوب، إنستغرام، إلخ)
+      throw new Error("يتم حالياً دعم تيك توك فقط. سيتم إضافة منصات أخرى قريباً.");
     }
     return res.json(data);
   } catch (err: any) {
